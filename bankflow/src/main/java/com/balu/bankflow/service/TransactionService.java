@@ -10,14 +10,17 @@ import com.balu.bankflow.repository.BankAccountRepository;
 import com.balu.bankflow.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -198,6 +201,106 @@ public class TransactionService {
 
         Transaction savedTransaction = transactionRepository.save(transaction);
         return mapToDto(savedTransaction);
+    }
+
+    // METHOD: getTransactionHistory(String accountNumber, String email)
+    // WHO: CUSTOMER (own account only) or BANK_ADMIN
+    // WHAT to do:
+    // WHAT to return: List<TransactionResponseDTO>
+    public List<TransactionResponseDTO> getTransactionHistory(String accountNumber, String email) {
+        //   Step 1: Find account by number → throw if not found
+        BankAccount account = bankAccountRepository.findByAccountNumber(accountNumber)
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
+
+        //   Step 2: Check ownership (same as transfer — SecurityContext role check)
+        String currentAccountUser = SecurityContextHolder
+                .getContext()
+                .getAuthentication()
+                .getName();
+        if (currentAccountUser.equals("CUSTOMER")) {
+            if (!account.getUser().getEmail().equals(email)) {
+                throw new UnauthorizedAccountAccessException("You do not have access to this account.");
+            }
+        }
+
+        //   Step 3: Find all transactions where fromAccount or toAccount = this account
+        List<Transaction> transactions = transactionRepository
+                .findAllByFromAccountIdOrToAccountId(account.getId(), account.getId());
+
+        //   Step 4: Sort by createdAt descending (latest first)
+        //   Step 5: Return list of TransactionResponseDTO
+        return transactions.stream()
+                .sorted(Comparator.comparing(Transaction::getCreatedAt).reversed())
+                .map(this::mapToDto)
+                .toList();
+    }
+
+    // METHOD: getTransactionsByType(String accountNumber,
+    //          String transactionType, String email)
+    // WHO: CUSTOMER (own account) or BANK_ADMIN
+    // WHAT to do:
+    // WHAT to return: List<TransactionResponseDTO>
+    public List<TransactionResponseDTO> getTransactionsByType(String accountNumber,
+                                                              String transactionType, String email) {
+
+        //   Step 1: Get full transaction history (call getTransactionHistory)
+        //   Step 2: Filter by transactionType
+        return getTransactionHistory(accountNumber, email)
+                .stream()
+                .filter(t -> t.getTransactionType().equalsIgnoreCase(transactionType))
+                .toList();
+    }
+
+    // METHOD: getTransactionsByDateRange(String accountNumber,
+    //          LocalDateTime from, LocalDateTime to, String email)
+    // WHO: CUSTOMER (own account) or BANK_ADMIN
+    // WHAT to do:
+    // WHAT to return: List<TransactionResponseDTO>
+    public List<TransactionResponseDTO> getTransactionsByDateRange(String accountNumber,
+                                                                   LocalDateTime start,
+                                                                   LocalDateTime end,
+                                                                   String email) {
+        //   Step 1: Get full transaction history
+        //   Step 2: Filter by createdAt between from and to
+        return getTransactionHistory(accountNumber, email)
+                .stream()
+                .filter(t -> !t.getCreatedAt().isBefore(start) &&
+                        !t.getCreatedAt().isAfter(end))
+                .toList();
+    }
+
+    // METHOD: getTransactionById(String transactionId, String email)
+    // WHO: CUSTOMER or BANK_ADMIN
+    // WHAT to do:
+    // WHAT to return: TransactionResponseDTO
+    public TransactionResponseDTO getTransactionById(String transactionId, String email) {
+
+        //   Step 1: Find transaction by transactionId → throw if not found
+        Transaction transaction = transactionRepository.findByTransactionId(transactionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
+
+        //   Step 2: Verify access — check fromAccount or toAccount belongs to user
+        //           (skip check for BANK_ADMIN)
+        String role = SecurityContextHolder
+                .getContext()
+                .getAuthentication()
+                .getAuthorities()
+                .iterator().next()
+                .getAuthority();
+
+        if (role.equals("CUSTOMER")) {
+            boolean isFromAccount = transaction.getFromAccount() != null &&
+                    transaction.getFromAccount().getUser().getEmail().equals(email);
+            boolean isToAccount = transaction.getToAccount() != null &&
+                    transaction.getToAccount().getUser().getEmail().equals(email);
+
+            if (!isFromAccount && !isToAccount) {
+                throw new UnauthorizedAccountAccessException("You do not have access to this transaction.");
+            }
+        }
+
+        //   Step 3: Return TransactionResponseDTO
+        return mapToDto(transaction);
     }
 
     private TransactionResponseDTO mapToDto(Transaction transaction) {

@@ -10,7 +10,11 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/transactions")
@@ -54,5 +58,54 @@ public class TransactionController {
             @PathVariable String accountNumber,
             @Valid @RequestBody DepositWithdrawRequestDTO dto) {
         return ResponseEntity.ok(transactionService.withdraw(accountNumber, dto));
+    }
+
+    // GET /api/transactions/history/{accountNumber}
+    // Access: CUSTOMER or BANK_ADMIN
+    // Note: get email from SecurityContext
+    @Operation(summary = "Get Transaction History")
+    @GetMapping("/history/{accountNumber}")
+    @PreAuthorize("hasRole('CUSTOMER') or hasRole('BANK_ADMIN')")
+    public ResponseEntity<List<TransactionResponseDTO>>
+    getTransactionHistory(@PathVariable String accountNumber) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        return ResponseEntity.ok(transactionService.getTransactionHistory(accountNumber, email));
+    }
+
+    // GET /api/transactions/history/{accountNumber}/type
+    // Access: CUSTOMER or BANK_ADMIN
+    // Request param: transactionType (String)
+    @Operation(summary = "Get Transactions By Type")
+    @GetMapping("/history/{accountNumber}/type")
+    @PreAuthorize("hasRole('CUSTOMER') or hasRole('BANK_ADMIN')")
+    public ResponseEntity<List<TransactionResponseDTO>> getTransactionsByType(@PathVariable String accountNumber,
+                                                                              @RequestParam String transactionType) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        return ResponseEntity.ok(transactionService.getTransactionsByType(accountNumber, transactionType, email));
+    }
+
+    // GET /api/transactions/history/{accountNumber}/date-range
+    // Access: CUSTOMER or BANK_ADMIN
+    // Request params: from (LocalDateTime), to (LocalDateTime)
+    @Operation(summary = "Get Transactions By Date Range")
+    @GetMapping("/history/{accountNumber}/date-range")
+    @PreAuthorize("hasRole('CUSTOMER') or hasRole('BANK_ADMIN')")
+    public ResponseEntity<List<TransactionResponseDTO>>
+    getTransactionsByDateRange(@PathVariable String accountNumber,
+                               @RequestParam LocalDateTime start,
+                               @RequestParam LocalDateTime end) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        return ResponseEntity.ok(transactionService.getTransactionsByDateRange(accountNumber, start, end, email));
+    }
+
+    // GET /api/transactions/{transactionId}
+    // Access: CUSTOMER or BANK_ADMIN
+    // Note: get email from SecurityContext
+    @Operation(summary = "Get Transaction By Id")
+    @GetMapping("/{transactionId}")
+    @PreAuthorize("hasRole('CUSTOMER') or hasRole('BANK_ADMIN')")
+    public ResponseEntity<TransactionResponseDTO> getTransactionById(@PathVariable String transactionId) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        return ResponseEntity.ok(transactionService.getTransactionById(transactionId, email));
     }
 }

@@ -31,6 +31,36 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.UNAUTHORIZED, ex.getMessage());
     }
 
+    @ExceptionHandler(InsufficientBalanceException.class)
+    public ResponseEntity<Map<String, Object>> handleInsufficientBalance(InsufficientBalanceException ex) {
+        return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    @ExceptionHandler(FraudSuspectedException.class)
+    public ResponseEntity<Map<String, Object>> handleFraudSuspected(FraudSuspectedException ex) {
+        return buildResponse(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
+    }
+
+    @ExceptionHandler(AccountNotActiveException.class)
+    public ResponseEntity<Map<String, Object>> handleAccountNotActive(AccountNotActiveException ex) {
+        return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    @ExceptionHandler(DailyLimitExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleDailyLimitExceed(DailyLimitExceededException ex) {
+        return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidTransactionException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidTransaction(InvalidTransactionException ex) {
+        return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    @ExceptionHandler(UnauthorizedAccountAccessException.class)
+    public ResponseEntity<Map<String,Object>> handleUnauthorizedAccount(UnauthorizedAccountAccessException ex){
+        return buildResponse(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneral(Exception ex) {
         return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage());

@@ -1,11 +1,14 @@
 package com.balu.bankflow.service;
 
 import com.balu.bankflow.dto.DepositWithdrawRequestDTO;
+import com.balu.bankflow.dto.TransactionEventDTO;
 import com.balu.bankflow.dto.TransactionResponseDTO;
 import com.balu.bankflow.dto.TransferRequestDTO;
 import com.balu.bankflow.entity.BankAccount;
 import com.balu.bankflow.entity.Transaction;
 import com.balu.bankflow.exception.*;
+import com.balu.bankflow.messaging.TransactionEventProducer;
+import com.balu.bankflow.messaging.TransactionNotificationProducer;
 import com.balu.bankflow.repository.BankAccountRepository;
 import com.balu.bankflow.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +32,8 @@ public class TransactionService {
 
     private final TransactionRepository transactionRepository;
     private final BankAccountRepository bankAccountRepository;
+    private final TransactionEventProducer transactionEventProducer;
+    private final TransactionNotificationProducer transactionNotificationProducer;
 
     //    Business rules for transfer():
     @Transactional
@@ -113,6 +118,13 @@ public class TransactionService {
         //    Map the saved Transaction to TransactionResponseDTO using the builder and return it.
         Transaction savedTransaction = transactionRepository.save(transaction);
 
+        // Publish Kafka event
+        TransactionEventDTO event = buildTransactionEvent(savedTransaction);
+        transactionEventProducer.publishTransactionEvent(event);
+
+        // Send RabbitMQ notification (TRANSFER only)
+        transactionNotificationProducer.sendTransactionNotification(event);
+
         return mapToDto(savedTransaction);
     }
 
@@ -154,6 +166,11 @@ public class TransactionService {
                 .build();
 
         Transaction savedTransaction = transactionRepository.save(transaction);
+
+        // Publish Kafka event only
+        TransactionEventDTO event = buildTransactionEvent(savedTransaction);
+        transactionEventProducer.publishTransactionEvent(event);
+
         return mapToDto(savedTransaction);
     }
 
@@ -200,6 +217,11 @@ public class TransactionService {
                 .build();
 
         Transaction savedTransaction = transactionRepository.save(transaction);
+
+        // Publish Kafka event only
+        TransactionEventDTO event = buildTransactionEvent(savedTransaction);
+        transactionEventProducer.publishTransactionEvent(event);
+
         return mapToDto(savedTransaction);
     }
 
@@ -301,6 +323,20 @@ public class TransactionService {
 
         //   Step 3: Return TransactionResponseDTO
         return mapToDto(transaction);
+    }
+
+    private TransactionEventDTO buildTransactionEvent(Transaction transaction) {
+        return TransactionEventDTO.builder()
+                .transactionId(transaction.getTransactionId())
+                .transactionType(transaction.getTransactionType())
+                .amount(transaction.getAmount())
+                .fromAccountNumber(transaction.getFromAccount() != null ?
+                        transaction.getFromAccount().getAccountNumber() : null)
+                .toAccountNumber(transaction.getToAccount() != null ?
+                        transaction.getToAccount().getAccountNumber() : null)
+                .status(transaction.getStatus())
+                .timestamp(transaction.getCreatedAt())
+                .build();
     }
 
     private TransactionResponseDTO mapToDto(Transaction transaction) {

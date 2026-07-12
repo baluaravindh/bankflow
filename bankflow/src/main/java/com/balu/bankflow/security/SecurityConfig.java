@@ -35,6 +35,7 @@ public class SecurityConfig {
                         auth.requestMatchers("/api/auth/**").permitAll()
                                 .requestMatchers("/swagger-ui/**").permitAll()
                                 .requestMatchers("/v3/api-docs/**").permitAll()
+                                .requestMatchers("/actuator/**").permitAll()
                                 // All other requests authenticated
                                 .anyRequest().authenticated())
                 // Add JwtFilter before UsernamePasswordAuthenticationFilter

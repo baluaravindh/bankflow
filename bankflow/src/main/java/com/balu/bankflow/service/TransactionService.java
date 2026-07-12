@@ -11,6 +11,9 @@ import com.balu.bankflow.messaging.TransactionEventProducer;
 import com.balu.bankflow.messaging.TransactionNotificationProducer;
 import com.balu.bankflow.repository.BankAccountRepository;
 import com.balu.bankflow.repository.TransactionRepository;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Sort;
@@ -36,6 +39,9 @@ public class TransactionService {
     private final TransactionNotificationProducer transactionNotificationProducer;
 
     //    Business rules for transfer():
+    @CircuitBreaker(name = "transactionService", fallbackMethod = "transferFallback")
+    @Retry(name = "transactionService")
+    @RateLimiter(name = "transactionService")
     @Transactional
     public TransactionResponseDTO transfer(Long fromAccountId, TransferRequestDTO dto) {
 
@@ -128,7 +134,18 @@ public class TransactionService {
         return mapToDto(savedTransaction);
     }
 
+    // FALLBACK METHOD for transfer
+    // Called when circuit breaker is OPEN
+    // Must have same parameters + Throwable at the end
+    public TransactionResponseDTO transferFallback(Long fromAccountId, TransferRequestDTO dto,
+                                                   Throwable throwable) {
+        log.error("Circuit breaker triggered for transfer. Reason: {}", throwable.getMessage());
+        throw new RuntimeException("Transfer service is temporarily unavailable. Please try again later.");
+    }
+
     //    Business rules for deposit():
+    @CircuitBreaker(name = "transactionService", fallbackMethod = "depositFallback")
+    @Retry(name = "transactionService")
     @Transactional
     public TransactionResponseDTO deposit(String accountNumber, DepositWithdrawRequestDTO dto) {
 
@@ -174,7 +191,16 @@ public class TransactionService {
         return mapToDto(savedTransaction);
     }
 
+    // Fallback for deposit
+    public TransactionResponseDTO depositFallback(String accountNumber, DepositWithdrawRequestDTO dto,
+                                                  Throwable throwable) {
+        log.error("Circuit breaker triggered for deposit. Reason: {}", throwable.getMessage());
+        throw new RuntimeException("Deposit service is temporarily unavailable. Please try again later.");
+    }
+
     //    Business rules for withdraw():
+    @CircuitBreaker(name = "transactionService", fallbackMethod = "withdrawFallback")
+    @Retry(name = "transactionService")
     @Transactional
     public TransactionResponseDTO withdraw(String accountNumber, DepositWithdrawRequestDTO dto) {
 
@@ -223,6 +249,13 @@ public class TransactionService {
         transactionEventProducer.publishTransactionEvent(event);
 
         return mapToDto(savedTransaction);
+    }
+
+    // Fallback for withdraw
+    public TransactionResponseDTO withdrawFallback(String accountNumber, DepositWithdrawRequestDTO dto,
+                                                   Throwable throwable) {
+        log.error("Circuit breaker triggered for withdraw. Reason: {}", throwable.getMessage());
+        throw new RuntimeException("Withdrawal service is temporarily unavailable. Please try again later.");
     }
 
     // METHOD: getTransactionHistory(String accountNumber, String email)

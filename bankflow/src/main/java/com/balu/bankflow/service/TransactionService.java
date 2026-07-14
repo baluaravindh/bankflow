@@ -37,6 +37,7 @@ public class TransactionService {
     private final BankAccountRepository bankAccountRepository;
     private final TransactionEventProducer transactionEventProducer;
     private final TransactionNotificationProducer transactionNotificationProducer;
+    private final EmailService emailService;
 
     //    Business rules for transfer():
     @CircuitBreaker(name = "transactionService", fallbackMethod = "transferFallback")
@@ -131,6 +132,24 @@ public class TransactionService {
         // Send RabbitMQ notification (TRANSFER only)
         transactionNotificationProducer.sendTransactionNotification(event);
 
+        // Send email to sender
+        emailService.sendTransactionAlertEmail(
+                fromAccount.getUser().getEmail(),
+                fromAccount.getUser().getFullName(),
+                "DEBIT",
+                dto.getAmount(),
+                fromAccount.getBalance()
+        );
+
+        // Send email to receiver
+        emailService.sendTransactionAlertEmail(
+                toAccount.getUser().getEmail(),
+                toAccount.getUser().getFullName(),
+                "CREDIT",
+                dto.getAmount(),
+                toAccount.getBalance()
+        );
+
         return mapToDto(savedTransaction);
     }
 
@@ -187,6 +206,15 @@ public class TransactionService {
         // Publish Kafka event only
         TransactionEventDTO event = buildTransactionEvent(savedTransaction);
         transactionEventProducer.publishTransactionEvent(event);
+
+        // Send email to receiver
+        emailService.sendTransactionAlertEmail(
+                account.getUser().getEmail(),
+                account.getUser().getFullName(),
+                "CREDIT",
+                dto.getAmount(),
+                account.getBalance()
+        );
 
         return mapToDto(savedTransaction);
     }
@@ -247,6 +275,15 @@ public class TransactionService {
         // Publish Kafka event only
         TransactionEventDTO event = buildTransactionEvent(savedTransaction);
         transactionEventProducer.publishTransactionEvent(event);
+
+        // Send email to sender
+        emailService.sendTransactionAlertEmail(
+                account.getUser().getEmail(),
+                account.getUser().getFullName(),
+                "DEBIT",
+                dto.getAmount(),
+                account.getBalance()
+        );
 
         return mapToDto(savedTransaction);
     }

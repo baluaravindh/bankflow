@@ -21,4 +21,7 @@ public interface LoanRepository extends JpaRepository<Loan, Long> {
     // findByStatus - return all loans with a given status
     //                used for admin approval queue (e.g. all PENDING loans)
     List<Loan> findByStatus(Loan.LoanStatus status);
+
+    // findByStatusAndInstallmentsPaidLessThan - returns loans still being paid off
+    List<Loan> findByStatusAndInstallmentsPaidLessThan(Loan.LoanStatus status, Integer installmentsPaid);
 }

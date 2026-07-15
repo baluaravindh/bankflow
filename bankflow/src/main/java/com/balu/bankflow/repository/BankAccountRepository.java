@@ -9,10 +9,12 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface BankAccountRepository extends JpaRepository<BankAccount,Long> {
+public interface BankAccountRepository extends JpaRepository<BankAccount, Long> {
 
     // Find all accounts by user
     List<BankAccount> findAllByUser(User user);
+
+    BankAccount findByUser(User user);
 
     // Find account by account number
     Optional<BankAccount> findByAccountNumber(String accountNumber);
